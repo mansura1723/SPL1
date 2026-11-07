@@ -1,0 +1,9 @@
+﻿/build/
+*.exe
+*.o
+*.obj
+*.dll
+*.a
+*.lib
+*.pdb
+/data/*.csv
