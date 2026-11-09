@@ -50,6 +50,7 @@ struct TaskFilter {
 };
 
 bool isValidDate(const std::string& date);
+bool isValidDeadline(const std::string& deadline);
 bool validateTask(const Task& task, std::string& error);
 bool parsePriority(const std::string& text, Priority& priority);
 bool parseStatus(const std::string& text, Status& status);

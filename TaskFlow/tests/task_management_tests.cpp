@@ -41,6 +41,15 @@ void validationTests(const std::filesystem::path& directory)
     require(isValidDate("2024-02-29"), "Leap day was rejected.");
     require(!isValidDate("2025-02-29"), "Invalid leap day was accepted.");
     require(!isValidDate("2027-13-01"), "Out-of-range month was accepted.");
+    require(isValidDeadline("2028-02-29T15:30"),
+        "A valid local date-time deadline was rejected.");
+    require(isValidDeadline("2028-02-29"),
+        "A valid date-only deadline was rejected.");
+    require(!isValidDeadline("2028-02-29T25:30"),
+        "An invalid date-time deadline was accepted.");
+    valid.deadline = "2028-02-29T15:30";
+    require(validateTask(valid, error),
+        "A task with a local date-time deadline was rejected.");
     valid.deadline = "2027-02-30";
     require(!validateTask(valid, error), "Invalid calendar date was accepted.");
     valid = sampleTask("Bad duration", Priority::Low, 0);
@@ -145,6 +154,12 @@ void queryTests(const std::filesystem::path& directory)
     const std::vector<Task> byDeadline = manager.sorted(SortField::Deadline);
     require(byDeadline.front().deadline == "2027-08-01",
         "Deadline sort is not ascending.");
+    Task timed = sampleTask("Timed deadline", Priority::High, 10,
+        "2027-08-01T10:00", "Development", Status::Pending);
+    require(manager.create(timed, created, error), error);
+    const std::vector<Task> mixedDeadlines = manager.sorted(SortField::Deadline);
+    require(mixedDeadlines.front().deadline == "2027-08-01T10:00",
+        "Date-time sorting did not precede the same date's end-of-day deadline.");
 }
 
 void persistenceTests(const std::filesystem::path& directory)

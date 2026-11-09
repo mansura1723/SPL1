@@ -2,6 +2,7 @@
 #include "cpp_test.hpp"
 #include "availability_management.hpp"
 #include "dependency_management.hpp"
+#include "scheduling_management.hpp"
 #include "task_management.hpp"
 
 #include <filesystem>
@@ -30,6 +31,7 @@ void printUsage()
               << "  TaskFlow.exe --demo sector-01\n"
               << "  TaskFlow.exe --demo sector-02\n"
               << "  TaskFlow.exe --demo sector-03\n"
+              << "  TaskFlow.exe --demo sector-04\n"
               << "  TaskFlow.exe --test [test-data-directory]\n";
 }
 
@@ -60,6 +62,10 @@ int main(int argc, char* argv[])
         return taskflow::runSector03Demo(
             "build/sector-03-demo-dependencies.csv");
     }
+    if (command == "--demo" && argc == 3
+        && std::string(argv[2]) == "sector-04") {
+        return taskflow::runSector04Demo();
+    }
     if (command == "--test" && argc <= 3) {
         const std::filesystem::path directory = argc == 3
             ? std::filesystem::path(argv[2])
@@ -70,7 +76,10 @@ int main(int argc, char* argv[])
         const int availabilityTestResult =
             taskflow::runAvailabilityTests(directory / "sector-02");
         if (availabilityTestResult != 0) return availabilityTestResult;
-        return taskflow::runDependencyTests(directory / "sector-03");
+        const int dependencyTestResult =
+            taskflow::runDependencyTests(directory / "sector-03");
+        if (dependencyTestResult != 0) return dependencyTestResult;
+        return taskflow::runSchedulingTests(directory / "sector-04");
     }
     if (command == "--help" || command == "-h") {
         printUsage();

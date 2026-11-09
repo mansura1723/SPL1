@@ -17,9 +17,11 @@ add_executable(taskflow
     cpp_modules/task_management.cpp
     cpp_modules/availability_management.cpp
     cpp_modules/dependency_management.cpp
+    cpp_modules/scheduling_management.cpp
     tests/task_management_tests.cpp
     tests/availability_tests.cpp
     tests/dependency_tests.cpp
+    tests/scheduling_tests.cpp
 )
 
 target_include_directories(taskflow PRIVATE include)

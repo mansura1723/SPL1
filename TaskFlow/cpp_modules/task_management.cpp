@@ -1,6 +1,7 @@
 #include "task_management.hpp"
 #include "availability_management.hpp"
 #include "dependency_management.hpp"
+#include "scheduling_management.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -202,6 +203,15 @@ bool taskFromFields(const std::vector<std::string>& fields, Task& task,
     return true;
 }
 
+std::pair<std::string, int> deadlineSortKey(const std::string& deadline)
+{
+    const std::string date = deadline.substr(0, 10);
+    const int minute = deadline.size() == 10 ? 1439
+        : std::stoi(deadline.substr(11, 2)) * 60
+            + std::stoi(deadline.substr(14, 2));
+    return {date, minute};
+}
+
 bool lessBy(const Task& left, const Task& right, SortField field)
 {
     switch (field) {
@@ -214,7 +224,7 @@ bool lessBy(const Task& left, const Task& right, SortField field)
     case SortField::Duration:
         return left.durationMinutes < right.durationMinutes;
     case SortField::Deadline:
-        return left.deadline < right.deadline;
+        return deadlineSortKey(left.deadline) < deadlineSortKey(right.deadline);
     case SortField::Status:
         return statusRank(left.status) < statusRank(right.status);
     }
@@ -268,9 +278,10 @@ bool readTaskDetails(Task& task)
     }
     if (!std::cin) return false;
 
-    while (readLine("Deadline (YYYY-MM-DD): ", task.deadline)) {
-        if (isValidDate(task.deadline)) break;
-        std::cout << "Enter a real calendar date in YYYY-MM-DD format.\n";
+    while (readLine("Deadline (YYYY-MM-DD or YYYY-MM-DDTHH:MM): ",
+            task.deadline)) {
+        if (isValidDeadline(task.deadline)) break;
+        std::cout << "Enter a real date or local date-time in the displayed format.\n";
     }
     if (!std::cin) return false;
 
@@ -346,6 +357,38 @@ bool isValidDate(const std::string& date)
         && parsed.tm_mday == original.tm_mday;
 }
 
+bool isValidDeadline(const std::string& deadline)
+{
+    if (isValidDate(deadline)) return true;
+    if (deadline.size() != 16 || deadline[4] != '-'
+        || deadline[7] != '-'
+        || (deadline[10] != 'T' && deadline[10] != ' ')
+        || deadline[13] != ':'
+        || !isValidDate(deadline.substr(0, 10))) return false;
+    for (const std::size_t index : {11u, 12u, 14u, 15u}) {
+        if (!std::isdigit(static_cast<unsigned char>(deadline[index])))
+            return false;
+    }
+    const int hour = std::stoi(deadline.substr(11, 2));
+    const int minute = std::stoi(deadline.substr(14, 2));
+    if (hour > 23 || minute > 59) return false;
+
+    std::tm parsed = {};
+    parsed.tm_year = std::stoi(deadline.substr(0, 4)) - 1900;
+    parsed.tm_mon = std::stoi(deadline.substr(5, 2)) - 1;
+    parsed.tm_mday = std::stoi(deadline.substr(8, 2));
+    parsed.tm_hour = hour;
+    parsed.tm_min = minute;
+    parsed.tm_isdst = -1;
+    const std::tm original = parsed;
+    if (std::mktime(&parsed) == static_cast<std::time_t>(-1)) return false;
+    return parsed.tm_year == original.tm_year
+        && parsed.tm_mon == original.tm_mon
+        && parsed.tm_mday == original.tm_mday
+        && parsed.tm_hour == original.tm_hour
+        && parsed.tm_min == original.tm_min;
+}
+
 bool validateTask(const Task& task, std::string& error)
 {
     if (task.name.empty() || task.name.size() > 120 || hasLineBreak(task.name)) {
@@ -360,8 +403,9 @@ bool validateTask(const Task& task, std::string& error)
         error = "Duration must be between 1 and 1000000 minutes.";
         return false;
     }
-    if (!isValidDate(task.deadline)) {
-        error = "Deadline must be a real date in YYYY-MM-DD format.";
+    if (!isValidDeadline(task.deadline)) {
+        error = "Deadline must be a real date or local date-time "
+            "in YYYY-MM-DD[THH:MM] format.";
         return false;
     }
     if (task.type.empty() || task.type.size() > 60 || hasLineBreak(task.type)) {
@@ -910,7 +954,8 @@ int runInteractiveTaskManager(const std::filesystem::path& storagePath,
                   << "4. View all tasks\n5. Search tasks\n6. Filter tasks\n"
                   << "7. Sort tasks\n8. Save tasks now\n"
                   << "9. Availability Management\n"
-                  << "10. Dependency Management\n0. Save and exit\nChoice: ";
+                  << "10. Dependency Management\n"
+                  << "11. Scheduling Strategies\n0. Save and exit\nChoice: ";
         std::string choice;
         if (!std::getline(std::cin, choice)) return 0;
 
@@ -1041,6 +1086,9 @@ int runInteractiveTaskManager(const std::filesystem::path& storagePath,
             if (runAvailabilityMenu(availabilityManager) != 0) return 1;
         } else if (choice == "10") {
             if (runDependencyMenu(manager, dependencyManager) != 0) return 1;
+        } else if (choice == "11") {
+            if (runSchedulingMenu(manager.all(), availabilityManager,
+                    dependencyManager) != 0) return 1;
         } else {
             std::cerr << "Invalid menu choice.\n";
         }

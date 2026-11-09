@@ -1,0 +1,90 @@
+=== TaskFlow Sector 04: Scheduling Algorithms Demo ===
+Scheduling context: Monday, 2028-01-03 at 16:00; availability 16:00-22:00; deadlines are local time.
+Tie-break case: Task A and Task C share Critical priority; Task C has the earlier deadline.
+
+Strategy: Priority Based
+Validation: PASS
+Eligible scheduling order:
+  1. TSK-000003 | Task C | slack 150 min | downstream impact 0
+  2. TSK-000001 | Task A | slack 120 min | downstream impact 1
+  3. TSK-000002 | Task B | slack 60 min | downstream impact 0
+  4. TSK-000004 | Task D | slack 255 min | downstream impact 0
+Blocked tasks:
+  TSK-000005 | Blocked dependent of A | waiting for TSK-000001
+Completed tasks:
+  TSK-000006 | Already completed
+Excluded tasks:
+  (none)
+Completed/excluded tasks: 1 completed, 0 excluded
+Total eligible tasks: 4
+Determinism check: PASS
+
+Strategy: Earliest Deadline First (EDF)
+Validation: PASS
+Eligible scheduling order:
+  1. TSK-000002 | Task B | slack 60 min | downstream impact 0
+  2. TSK-000003 | Task C | slack 150 min | downstream impact 0
+  3. TSK-000001 | Task A | slack 120 min | downstream impact 1
+  4. TSK-000004 | Task D | slack 255 min | downstream impact 0
+Blocked tasks:
+  TSK-000005 | Blocked dependent of A | waiting for TSK-000001
+Completed tasks:
+  TSK-000006 | Already completed
+Excluded tasks:
+  (none)
+Completed/excluded tasks: 1 completed, 0 excluded
+Total eligible tasks: 4
+Determinism check: PASS
+
+Strategy: Shortest Job First (SJF)
+Validation: PASS
+Eligible scheduling order:
+  1. TSK-000003 | Task C | slack 150 min | downstream impact 0
+  2. TSK-000004 | Task D | slack 255 min | downstream impact 0
+  3. TSK-000002 | Task B | slack 60 min | downstream impact 0
+  4. TSK-000001 | Task A | slack 120 min | downstream impact 1
+Blocked tasks:
+  TSK-000005 | Blocked dependent of A | waiting for TSK-000001
+Completed tasks:
+  TSK-000006 | Already completed
+Excluded tasks:
+  (none)
+Completed/excluded tasks: 1 completed, 0 excluded
+Total eligible tasks: 4
+Determinism check: PASS
+
+Strategy: Least Slack Time First (LST)
+Validation: PASS
+Eligible scheduling order:
+  1. TSK-000002 | Task B | slack 60 min | downstream impact 0
+  2. TSK-000001 | Task A | slack 120 min | downstream impact 1
+  3. TSK-000003 | Task C | slack 150 min | downstream impact 0
+  4. TSK-000004 | Task D | slack 255 min | downstream impact 0
+Blocked tasks:
+  TSK-000005 | Blocked dependent of A | waiting for TSK-000001
+Completed tasks:
+  TSK-000006 | Already completed
+Excluded tasks:
+  (none)
+Completed/excluded tasks: 1 completed, 0 excluded
+Total eligible tasks: 4
+Determinism check: PASS
+
+Strategy: User Defined Ranking
+Validation: PASS
+Eligible scheduling order:
+  1. TSK-000004 | Task D | slack 255 min | downstream impact 0
+  2. TSK-000002 | Task B | slack 60 min | downstream impact 0
+  3. TSK-000003 | Task C | slack 150 min | downstream impact 0
+  4. TSK-000001 | Task A | slack 120 min | downstream impact 1
+Blocked tasks:
+  TSK-000005 | Blocked dependent of A | waiting for TSK-000001
+Completed tasks:
+  TSK-000006 | Already completed
+Excluded tasks:
+  (none)
+Completed/excluded tasks: 1 completed, 0 excluded
+Total eligible tasks: 4
+Determinism check: PASS
+
+Invalid-input check: PASS - No custom rank was provided for eligible task TSK-000001.

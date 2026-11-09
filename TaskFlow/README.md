@@ -1,7 +1,8 @@
-# TaskFlow - Task and Availability Management
+# TaskFlow - Task, Availability, Dependency, and Scheduling
 
 TaskFlow includes Sector 01 (Task Management), Sector 02 (Availability
-Management), and Sector 03 (Dependency Management). The application modules
+Management), Sector 03 (Dependency Management), and Sector 04 (Scheduling
+Algorithms). The application modules
 use C++17. The original C11 test module and Sector 01 behavior are preserved
 and tested as regressions.
 
@@ -40,6 +41,7 @@ press Enter. After an operation it returns to the menu.
 | 8 | Save tasks immediately |
 | 9 | Open Availability Management |
 | 10 | Open Dependency Management |
+| 11 | Open Scheduling Strategies |
 | 0 | Save and exit |
 
 Input formats and limits:
@@ -48,8 +50,9 @@ Input formats and limits:
 - **Description:** up to 2,000 characters; it may be blank.
 - **Priority:** `Low`, `Medium`, `High`, or `Critical`.
 - **Duration:** whole minutes from 1 to 1,000,000.
-- **Deadline:** a real calendar date written `YYYY-MM-DD` (for example
-  `2028-02-29`; impossible dates are rejected).
+- **Deadline:** a real local date written `YYYY-MM-DD` (treated as 11:59 PM),
+  or a local date-time written `YYYY-MM-DDTHH:MM` (for example
+  `2028-02-29T15:30`; impossible dates and times are rejected).
 - **Type:** required, 1-60 characters.
 - **Status:** `Pending`, `Ready`, `In Progress`, `Completed`, or `Overdue`.
 
@@ -89,8 +92,26 @@ Or show each test result directly:
 The suite covers preserved C11/C++17 module checks, task and availability
 regressions, dependency CRUD and persistence, malformed records, cycles,
 deterministic topological order, readiness and multiple blockers, downstream
-impact, failed-save preservation, and task-deletion protection. Test data is
+impact, all five scheduling strategies, weekly availability-based slack,
+commitments, blocked-task filtering, and deterministic ties. Test data is
 written under `build`.
+
+### 5. Sector 04 scheduling
+
+Choose `11. Scheduling Strategies` from the main menu. The scheduler uses the
+loaded weekly availability and dependency data without changing task statuses.
+Deadlines with a date only are interpreted at the end of that local day.
+Available working time excludes configured unavailable periods and optional
+committed intervals supplied to the scheduling engine.
+
+Run the reproducible, non-interactive demonstration:
+
+```powershell
+.\build\taskflow.exe --demo sector-04
+```
+
+Sector 04's algorithm notes and the captured demo output are in
+`docs/sectors/SECTOR_04_ALGORITHMS.md` and `docs/demos/SECTOR_04_OUTPUT.txt`.
 
 ## Sector 02 - Availability Management
 
