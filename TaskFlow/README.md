@@ -1,8 +1,9 @@
 # TaskFlow - Task and Availability Management
 
-TaskFlow currently includes Sector 01 (Task Management) and Sector 02
-(Availability Management). Both application modules use C++17. The original
-C11 test module and Sector 01 behavior are preserved and tested as regressions.
+TaskFlow includes Sector 01 (Task Management), Sector 02 (Availability
+Management), and Sector 03 (Dependency Management). The application modules
+use C++17. The original C11 test module and Sector 01 behavior are preserved
+and tested as regressions.
 
 ## Step-by-step user guide
 
@@ -38,6 +39,7 @@ press Enter. After an operation it returns to the menu.
 | 7 | Sort by ID, name, priority, duration, deadline, or status |
 | 8 | Save tasks immediately |
 | 9 | Open Availability Management |
+| 10 | Open Dependency Management |
 | 0 | Save and exit |
 
 Input formats and limits:
@@ -51,9 +53,10 @@ Input formats and limits:
 - **Type:** required, 1-60 characters.
 - **Status:** `Pending`, `Ready`, `In Progress`, `Completed`, or `Overdue`.
 
-The app loads `data/tasks.csv` and `data/availability.csv` when it starts. Each
-sector has a separate file; availability operations never overwrite task data.
-A missing file starts that sector with an empty list. Task IDs are generated as
+The app loads `data/tasks.csv`, `data/availability.csv`, and
+`data/dependencies.csv` when it starts. Each sector has a separate file;
+availability and dependency operations never overwrite task data. A missing
+file starts that sector with an empty list. Task IDs are generated as
 `TSK-000001`, `TSK-000002`, and so on. Search ignores case. Priority sorting is
 highest-first; duration and deadline sorting are ascending.
 
@@ -83,11 +86,11 @@ Or show each test result directly:
 .\build\taskflow.exe --test
 ```
 
-The suite covers preserved C11/C++17 module checks, valid and invalid input,
-date and duration boundaries, empty lists, CRUD, search/filter/sort, CSV
-escaping, ID continuity, malformed and duplicate-ID files, failed-save data
-preservation, and an end-to-end persistence workflow. Test data is written
-under `build`.
+The suite covers preserved C11/C++17 module checks, task and availability
+regressions, dependency CRUD and persistence, malformed records, cycles,
+deterministic topological order, readiness and multiple blockers, downstream
+impact, failed-save preservation, and task-deletion protection. Test data is
+written under `build`.
 
 ## Sector 02 - Availability Management
 
@@ -241,21 +244,109 @@ Sector 01 regression cases.
 
 ## Sector 03 - Dependency Management
 
-The main menu includes a `Dependency Management` submenu for guided, quick,
-and bulk insertion of prerequisite relationships between tasks. It validates
-missing task IDs, duplicate dependency records, self-dependencies, and cycles,
-then saves a separate `data/dependencies.csv` file without touching the task or
-availability CSV data.
+The main menu opens **DEPENDENCY MANAGEMENT** at choice `10`. Relationships
+are written as `DEPENDENT_TASK_ID|PREREQUISITE_TASK_ID`; for example,
+`TSK-000002|TSK-000001` means task 2 depends on task 1. Add relationships using
+guided fields, a one-line quick entry, or a bulk paste terminated by `END`.
+Guided and quick entry show a preview and request confirmation. A bulk batch
+lists every valid and invalid row and saves nothing unless every row is valid
+and confirmed.
 
-Dependency records are stored as `DEPENDENT_TASK_ID,PREREQUISITE_TASK_ID` and
-are loaded automatically on startup. A task is ready only when every
-prerequisite is marked `Completed`; `Pending`, `Ready`, `In Progress`, and
-`Overdue` do not satisfy a prerequisite. Bulk submission rejects the entire
-batch if any row is invalid or would introduce a cycle, and the menu protects
-`TaskManager` deletions when other tasks still depend on the task being removed.
+The submenu supports add, remove, view all, prerequisites, direct dependents,
+readiness checks, blocked/ready task lists, topological order, full validation,
+explicit save, dependency search by task ID, graph display, and downstream
+importance analysis. Choices 14-17 are search, graph, importance, and return.
+The graph is displayed as prerequisite-to-dependent arrows and includes task
+IDs and names.
+
+The project implements all ten Sector 03 capabilities:
+
+1. **Add dependencies** only between existing tasks; duplicates, invalid IDs,
+   self-dependencies, and cycle-forming edges are rejected.
+2. **Remove dependencies** only when the exact record exists; each successful
+   change is persisted.
+3. **View dependencies** as all records, one task's prerequisites, or direct
+   dependent tasks.
+4. **Display the directed graph** as prerequisite-to-dependent adjacency
+   lines, including branches and isolated tasks.
+5. **Generate topological ordering** with Kahn's algorithm. A lexicographically
+   ordered set breaks ties so equivalent graph inputs always produce the same
+   order.
+6. **Detect cycles** with depth-first search; cycle errors include the task-ID
+   path when available. Cyclic persisted data is rejected on load.
+7. **Identify ready tasks** only when all prerequisites have status
+   `Completed`. Already completed tasks are not listed as ready, and readiness
+   analysis never changes task status.
+8. **Validate the complete graph** for malformed IDs/records, missing task
+   references, duplicate edges, self-dependencies, and cycles.
+9. **Identify blocked tasks** and list every prerequisite that is missing or
+   not `Completed`.
+10. **Analyze dependency importance** using graph traversal. The importance
+    score is the number of *unique downstream tasks* reachable from the
+    selected task; direct-dependent count is also reported separately. This
+    count-based score is intentionally explainable and is not a scheduling
+    priority.
+
+Dependencies are stored separately in `data/dependencies.csv` and loaded on
+startup; task and availability CSV files are untouched. Successful changes
+save immediately, and the submenu also offers an explicit save. Saves use a
+temporary file and preserve the previous file if installation fails. The
+application warns about invalid task references on startup, disables graph
+reports until the graph is repaired, and prevents deleting any task referenced
+as either a dependent or prerequisite until those links are removed.
+
+### Sector 03 demo and tests
+
+Build and run:
+
+```powershell
+cmake --build build --config Debug
+.\build\taskflow.exe --demo sector-03
+ctest --test-dir build --output-on-failure
+```
+
+The demo creates the `Complete Requirements -> Implement Code -> Test
+Application` chain through `DependencyManager`, with Complete Requirements
+already completed and an additional isolated task. It prints the complete
+graph and topological order, identifies Implement Code and the isolated task
+as ready, identifies Test Application as blocked, rejects the cycle-forming
+edge from Test Application back to Complete Requirements, reports downstream
+impact, removes an edge, and validates the resulting graph. It uses only
+`build/sector-03-demo-dependencies.csv` and an in-memory sample task list; it
+does not read or modify the user's task or dependency data.
 
 ```powershell
 .\build\taskflow.exe --demo sector-03
+```
+
+Example output from the demo:
+
+```text
+Dependency graph (prerequisite -> dependent):
+TSK-000001: Complete Requirements
+  -> TSK-000002: Implement Code
+TSK-000002: Implement Code
+  -> TSK-000003: Test Application
+TSK-000003: Test Application
+TSK-000004: Independent Task
+
+Topological order: Complete Requirements -> Implement Code -> Test Application -> Independent Task
+Ready tasks:
+  Implement Code
+  Independent Task
+Blocked tasks:
+  Test Application (Waiting for Implement Code)
+
+ERROR: Circular dependency detected!
+Dependency rejected. Circular dependency detected: TSK-000001 -> TSK-000002 -> TSK-000003 -> TSK-000001
+
+Dependency importance for Complete Requirements:
+  Direct dependent tasks: 1
+  Downstream dependent tasks: 2
+  Importance score: 2 (number of unique downstream tasks)
+
+Removed dependency: Test Application no longer depends on Implement Code.
+Dependency graph valid after removal: yes
 ```
 
 ## Complete interactive walkthrough
@@ -332,9 +423,11 @@ reported `Saved 0 task(s).`; choice 0 then saved and exited.
 - `include/dependency_management.hpp` defines the dependency record model,
   validation helpers, graph checks, and `DependencyManager` interface.
 - `cpp_modules/dependency_management.cpp` implements Sector 03 parsing,
-  validation, topological ordering, readiness checks, CSV persistence, and the
-  submenu.
+  validation, cycle detection, topological ordering, readiness and blocked-task
+  checks, downstream impact, CSV persistence, the submenu, and demo.
 - `tests/availability_tests.cpp` contains Sector 02 unit/integration tests.
+- `tests/dependency_tests.cpp` covers Sector 03 graph logic, persistence,
+  failure handling, and task-deletion protection.
 - `c_modules/c_test.c` and `include/c_test.h` are the preserved C11 test
   module; `cpp_modules/cpp_test.cpp` and `include/cpp_test.hpp` retain the
   original C++ starter-module check.
@@ -367,6 +460,7 @@ cmake -S . -B build -G "MinGW Makefiles"
 cmake --build build --config Debug
 .\build\taskflow.exe
 .\build\taskflow.exe --demo sector-02
+.\build\taskflow.exe --demo sector-03
 .\build\taskflow.exe --test
 ctest --test-dir build --output-on-failure
 ```

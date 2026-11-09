@@ -29,6 +29,7 @@ void printUsage()
               << "  TaskFlow.exe                 Run the interactive manager\n"
               << "  TaskFlow.exe --demo sector-01\n"
               << "  TaskFlow.exe --demo sector-02\n"
+              << "  TaskFlow.exe --demo sector-03\n"
               << "  TaskFlow.exe --test [test-data-directory]\n";
 }
 
@@ -66,7 +67,10 @@ int main(int argc, char* argv[])
         const int taskTestResult =
             taskflow::runTaskManagementTests(directory / "sector-01");
         if (taskTestResult != 0) return taskTestResult;
-        return taskflow::runAvailabilityTests(directory / "sector-02");
+        const int availabilityTestResult =
+            taskflow::runAvailabilityTests(directory / "sector-02");
+        if (availabilityTestResult != 0) return availabilityTestResult;
+        return taskflow::runDependencyTests(directory / "sector-03");
     }
     if (command == "--help" || command == "-h") {
         printUsage();

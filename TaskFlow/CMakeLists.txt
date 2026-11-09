@@ -19,6 +19,7 @@ add_executable(taskflow
     cpp_modules/dependency_management.cpp
     tests/task_management_tests.cpp
     tests/availability_tests.cpp
+    tests/dependency_tests.cpp
 )
 
 target_include_directories(taskflow PRIVATE include)

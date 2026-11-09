@@ -83,7 +83,8 @@ private:
 int runTaskManagementTests(const std::filesystem::path& testDirectory);
 int runSector01Demo(const std::filesystem::path& storagePath);
 int runInteractiveTaskManager(const std::filesystem::path& storagePath,
-    const std::filesystem::path& availabilityPath);
+    const std::filesystem::path& availabilityPath,
+    const std::filesystem::path& dependencyPath = "data/dependencies.csv");
 
 } // namespace taskflow
 

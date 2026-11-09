@@ -873,7 +873,8 @@ int runSector01Demo(const std::filesystem::path& storagePath)
 }
 
 int runInteractiveTaskManager(const std::filesystem::path& storagePath,
-    const std::filesystem::path& availabilityPath)
+    const std::filesystem::path& availabilityPath,
+    const std::filesystem::path& dependencyPath)
 {
     TaskManager manager(storagePath);
     std::string error;
@@ -888,10 +889,14 @@ int runInteractiveTaskManager(const std::filesystem::path& storagePath,
         return 1;
     }
 
-    DependencyManager dependencyManager("data/dependencies.csv");
+    DependencyManager dependencyManager(dependencyPath);
     if (!dependencyManager.load(error)) {
         std::cerr << "Could not load dependency data: " << error << '\n';
         return 1;
+    }
+    if (!dependencyManager.validateGraph(manager.all(), error)) {
+        std::cerr << "Dependency graph validation warning: " << error << '\n'
+                  << "Dependency graph reports will be disabled until the records are repaired.\n";
     }
 
     std::cout << "Loaded " << manager.all().size() << " task(s), "
@@ -950,13 +955,20 @@ int runInteractiveTaskManager(const std::filesystem::path& storagePath,
             std::cout << "\n=== Delete task ===\n";
             std::string id;
             if (!readLine("Task ID to delete: ", id)) return 0;
-            std::vector<Dependency> dependents = dependencyManager.dependentsForTask(id);
-            if (!dependents.empty()) {
-                std::cout << "Cannot delete task " << id << " because other tasks depend on it:\n";
-                for (const Dependency& dependency : dependents) {
-                    std::cout << "  " << dependency.dependentId << " depends on " << id << '\n';
+            if (dependencyManager.taskHasReferences(id)) {
+                std::cout << "Cannot delete task " << id
+                          << " because it is referenced by dependency records:\n";
+                for (const Dependency& dependency : dependencyManager.all()) {
+                    if (dependency.dependentId == id) {
+                        std::cout << "  " << id << " depends on "
+                                  << dependency.prerequisiteId << '\n';
+                    }
+                    if (dependency.prerequisiteId == id) {
+                        std::cout << "  " << dependency.dependentId
+                                  << " depends on " << id << '\n';
+                    }
                 }
-                std::cout << "Remove the dependency records first.\n";
+                std::cout << "Remove all dependency records referencing this task first.\n";
                 continue;
             }
             std::string confirmation;
