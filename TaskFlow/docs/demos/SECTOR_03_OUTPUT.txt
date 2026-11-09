@@ -1,0 +1,34 @@
+=== Sector 03: Dependency Management Demo ===
+Adding dependencies with the DependencyManager:
+Implement Code depends on Complete Requirements.
+Test Application depends on Implement Code.
+Independent Task has no prerequisites.
+
+Dependency graph (prerequisite -> dependent):
+TSK-000001: Complete Requirements
+  -> TSK-000002: Implement Code
+TSK-000002: Implement Code
+  -> TSK-000003: Test Application
+TSK-000003: Test Application
+TSK-000004: Independent Task
+
+Topological order: Complete Requirements -> Implement Code -> Test Application -> Independent Task
+Ready tasks:
+  Implement Code
+  Independent Task
+Blocked tasks:
+  Test Application (Waiting for Implement Code)
+
+Cycle test: attempt to add Complete Requirements depending on Test Application.
+ERROR: Circular dependency detected!
+Dependency rejected. Circular dependency detected: TSK-000001 -> TSK-000002 -> TSK-000003 -> TSK-000001
+
+Dependency importance for Complete Requirements:
+  Direct dependent tasks: 1
+  Downstream dependent tasks: 2
+  Importance score: 2 (number of unique downstream tasks)
+    TSK-000002: Implement Code
+    TSK-000003: Test Application
+
+Removed dependency: Test Application no longer depends on Implement Code.
+Dependency graph valid after removal: yes

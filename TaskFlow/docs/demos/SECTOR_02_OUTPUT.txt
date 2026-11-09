@@ -1,0 +1,65 @@
+=== Sector 02: Availability Management Demo ===
+Dedicated demo storage: build/sector-02-demo-availability.csv
+Cleared 4 existing demo window(s).
+
+=== Guided input example ===
+Day: Monday
+Start Time: 9:00 AM
+End Time: 1:00 PM
+Label: Morning Study
+Parsed preview:
+Day: Monday
+Start: 9:00 AM
+End: 1:00 PM
+Label: Morning Study
+Actual result: saved as AV-000009.
+
+=== Quick input example ===
+Input: MON|2:00 PM|5:00 PM|Afternoon Study
+Day: Monday
+Start: 2:00 PM
+End: 5:00 PM
+Label: Afternoon Study
+Actual result: saved as AV-000010.
+
+=== Bulk input example ===
+Input records (terminate with END):
+TUE|10:00 AM|1:00 PM|Free Time
+WED|6:00 PM|8:00 PM|Programming
+END
+Preview:
+Line | Day | Start - End | Label | Result
+1 | Tuesday | 10:00 AM - 1:00 PM | Free Time | Valid
+2 | Wednesday | 6:00 PM - 8:00 PM | Programming | Valid
+Actual result: saved 2 records as one batch.
+
+=== Invalid time rejection ===
+Input: THU|13:00 PM|2:00 PM|Invalid Clock
+Actual result: rejected: Invalid start time '13:00 PM'. Use 12-hour time such as 9:00 AM.
+
+=== Overlap detection ===
+Input: MON|12:00 PM|3:00 PM|Overlapping Window
+Actual result: rejected: Record 1: Overlaps availability window AV-000009 on Monday (9:00 AM-1:00 PM).
+
+=== Daily and weekly summary ===
+Monday: 2 window(s), 7 hour(s) 0 minute(s)
+Tuesday: 1 window(s), 3 hour(s) 0 minute(s)
+Wednesday: 1 window(s), 2 hour(s) 0 minute(s)
+Thursday: 0 window(s), 0 hour(s) 0 minute(s)
+Friday: 0 window(s), 0 hour(s) 0 minute(s)
+Saturday: 0 window(s), 0 hour(s) 0 minute(s)
+Sunday: 0 window(s), 0 hour(s) 0 minute(s)
+Weekly total: 12 hour(s) 0 minute(s)
+
+=== Save availability ===
+Input file: build/sector-02-demo-availability.csv
+Actual result: saved 4 availability window(s).
+
+=== Save and reload ===
+Actual result: reloaded 4 saved window(s).
+Final availability list:
+ID | Day | Start - End | Label
+AV-000009 | Monday | 9:00 AM - 1:00 PM | Morning Study
+AV-000010 | Monday | 2:00 PM - 5:00 PM | Afternoon Study
+AV-000011 | Tuesday | 10:00 AM - 1:00 PM | Free Time
+AV-000012 | Wednesday | 6:00 PM - 8:00 PM | Programming

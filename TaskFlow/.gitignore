@@ -1,9 +1,35 @@
 ﻿/build/
+/build-*/
+/cmake-build-*/
+
+# CMake-generated files and test results
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+Testing/
+
+# Compiled artifacts
 *.exe
 *.o
 *.obj
 *.dll
+*.so
 *.a
 *.lib
 *.pdb
+
+# Local IDE and editor state
+.vs/
+.vscode/
+*.user
+*.suo
+*.swp
+
+# Local logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# Application data is local state, not a checked-in fixture
 /data/*.csv

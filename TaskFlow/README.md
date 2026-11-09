@@ -1,22 +1,185 @@
-# TaskFlow - Task, Availability, Dependency, and Scheduling
+# TaskFlow — Constraint-Aware Task Scheduling and Decision Engine
 
-TaskFlow includes Sector 01 (Task Management), Sector 02 (Availability
-Management), Sector 03 (Dependency Management), and Sector 04 (Scheduling
-Algorithms). The application modules
-use C++17. The original C11 test module and Sector 01 behavior are preserved
-and tested as regressions.
+TaskFlow is a C++17 command-line application for managing tasks, recurring
+weekly availability, prerequisite relationships, and deterministic schedules.
+It combines four sector modules into a single interactive application and
+keeps task, availability, and dependency data in separate CSV files.
+
+## Technologies
+
+- C++17 for the TaskFlow application and C11 for the preserved C module check.
+- CMake 3.16+ for configuring, building, and registering tests.
+- The C and C++ standard libraries; application records are stored in CSV.
+
+## Problem and objectives
+
+Task lists alone do not account for when work can be done or what must happen
+first. TaskFlow models those constraints and provides explainable scheduling
+strategies without silently changing task status. The project demonstrates
+modular C/C++ integration, validation, file persistence, graph algorithms,
+automated tests, and CMake-based builds.
+
+## Features by sector
+
+| Sector | Capabilities |
+|---|---|
+| 01 — Task Management | Validated task CRUD, generated IDs, search, filters, sorting, CSV persistence |
+| 02 — Availability Management | Weekly time windows, overlap checks, bulk input, daily/weekly summaries |
+| 03 — Dependency Management | Graph validation, cycle detection, topological order, readiness, blockers, downstream impact |
+| 04 — Scheduling | Priority, EDF, SJF, LST, and custom ranking with deterministic tie-breaks |
+
+Sector 04 schedules only unblocked Pending and In Progress tasks. It reports
+completed, blocked, and excluded tasks separately, calculates deadline slack
+from weekly availability, and leaves source task statuses unchanged. See the
+[Sector 04 algorithm notes](docs/sectors/SECTOR_04_ALGORITHMS.md) for its
+availability model, edge cases, and ordering rules.
+
+## Architecture
+
+`src/main.cpp` routes interactive use, sector demos, and the test runner.
+Managers own the data and CSV persistence for their respective sectors. The
+scheduling engine consumes task, availability, and dependency snapshots.
+
+- [System architecture](docs/architecture/SYSTEM_ARCHITECTURE.md)
+- [Module interaction](docs/architecture/MODULE_INTERACTION.md)
+- [Data flow](docs/architecture/DATA_FLOW.md)
+- [Task lifecycle, DAG, and scheduling algorithms](docs/architecture/ALGORITHM_DESIGN.md)
+
+## Project structure
+
+```text
+TaskFlow/
+├── CMakeLists.txt
+├── README.md
+├── cpp_modules/       # Sector implementations and preserved C++ check
+├── c_modules/         # Preserved C11 regression check
+├── include/           # Public module headers
+├── src/               # Application entry point
+├── tests/              # Sector tests, built into taskflow
+├── data/               # Local interactive CSV data (not committed)
+└── docs/
+    ├── architecture/
+    ├── demos/
+    └── sectors/
+```
+
+## Prerequisites and build
+
+- CMake 3.16 or newer.
+- A C11 and C++17-capable compiler (for example GCC, Clang, or MinGW-w64).
+- Git is needed to clone the repository.
+
+Clone the repository and enter the project directory:
+
+```sh
+git clone --branch squash-practice https://github.com/mansura1723/SPL1.git
+cd SPL1/TaskFlow
+```
+
+On Windows with MinGW-w64, configure and build from the TaskFlow directory:
+
+```powershell
+cmake -S . -B build -G "MinGW Makefiles"
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+On Linux or macOS with a suitable default CMake generator:
+
+```sh
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+Run the interactive manager from this directory so the relative `data/` and
+demo paths resolve correctly:
+
+```sh
+./build/taskflow
+```
+
+On Windows PowerShell, use `.\build\taskflow.exe`. The CMake project is in the
+`TaskFlow/` subdirectory of the Git repository; the root-level GitHub Actions
+workflow configures it with `cmake -S TaskFlow`.
+
+## Sector documentation and demos
+
+Dedicated technical notes describe purpose, data/API, algorithms, validation,
+integration, test coverage, and demo execution:
+
+- [Sector 01 — Task Management](docs/sectors/SECTOR_01_TASK_MANAGEMENT.md)
+- [Sector 02 — Availability Management](docs/sectors/SECTOR_02_AVAILABILITY_MANAGEMENT.md)
+- [Sector 03 — Dependency Management](docs/sectors/SECTOR_03_DEPENDENCY_MANAGEMENT.md)
+- [Sector 04 — Scheduling](docs/sectors/SECTOR_04_ALGORITHMS.md)
+
+Each demo can be run from the TaskFlow directory:
+
+```powershell
+.\build\taskflow.exe --demo sector-01
+.\build\taskflow.exe --demo sector-02
+.\build\taskflow.exe --demo sector-03
+.\build\taskflow.exe --demo sector-04
+```
+
+Captured outputs are in [`docs/demos/`](docs/demos/). The demo commands use
+separate files under `build/`, not the interactive CSV data. Sector 01 and 02
+demos retain their dedicated CSV files between runs, so generated IDs in
+captured output can differ after previous local runs.
+
+For example, the captured Sector 04 run includes:
+
+```text
+Strategy: Earliest Deadline First (EDF)
+Validation: PASS
+Eligible scheduling order:
+  1. TSK-000002 | Task B | slack 60 min | downstream impact 0
+Determinism check: PASS
+```
+
+## Test and validation
+
+CMake registers one CTest test, `taskflow_all_sectors`, which runs the
+combined test harness. It includes the preserved C11 and C++17 module checks
+and the Sector 01–04 test suites. To run the same harness directly:
+
+```powershell
+.\build\taskflow.exe --test
+```
+
+In the fresh local run, the direct harness reported 7 Sector 01 tests, 7
+Sector 02 tests, 8 Sector 03 tests, and 41 Sector 04 checks (0 failed).
+Generated test data is written beneath the build directory. The repository
+also has a GitHub Actions workflow that configures, builds, and runs CTest on
+Ubuntu for pushes and pull requests. A workflow file being present does not
+itself establish that a GitHub Actions run has passed.
+
+## License
+
+No license is currently included. Without an explicit license, default
+copyright restrictions generally apply; this repository does not grant
+general permission to reuse, modify, or redistribute its contents. A license
+should be added only after the rights holder chooses and authorizes its terms.
+
+## Future improvements
+
+- Add time-zone-aware availability and dated calendar exceptions.
+- Persist scheduled commitments for use by the slack calculation.
+- Add remaining-duration tracking for in-progress tasks.
+- Expand portability checks across supported compiler and operating-system
+  combinations.
 
 ## Step-by-step user guide
 
 ### 1. Build the project
 
-Open the VS Code PowerShell terminal, change to the TaskFlow project root, and
-configure/build with the MinGW generator:
+Change to the TaskFlow project directory, then configure and build with the
+MinGW generator (or use the generator configured for your compiler):
 
 ```powershell
 Set-Location 'C:\Users\Admin\Desktop\SPL1\TaskFlow'
 cmake -S . -B build -G "MinGW Makefiles"
-cmake --build build --config Debug
+cmake --build build
 ```
 
 ### 2. Start interactive mode
@@ -250,7 +413,7 @@ insertion, overlap rejection, summary calculations, persistence, and reload.
 It uses `build/sector-02-demo-availability.csv`, not the user's availability
 file, and starts each run with fresh demo records.
 
-Run all Sector 01 and Sector 02 tests:
+Run the combined test harness for Sectors 01–04:
 
 ```powershell
 .\build\taskflow.exe --test
@@ -478,7 +641,7 @@ memory, so a failed batch cannot partially change saved data.
 ```powershell
 Set-Location 'C:\Users\Admin\Desktop\SPL1\TaskFlow'
 cmake -S . -B build -G "MinGW Makefiles"
-cmake --build build --config Debug
+cmake --build build
 .\build\taskflow.exe
 .\build\taskflow.exe --demo sector-02
 .\build\taskflow.exe --demo sector-03

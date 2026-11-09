@@ -1,0 +1,96 @@
+=== Sector 01: Automated Task Management Demo ===
+Storage file: build/sector-01-demo-tasks.csv
+
+=== Operation: Load demo data ===
+Input: dedicated demo storage file
+Result: loaded 1 existing task(s).
+
+=== Operation: Reset previous demo tasks ===
+Input: delete the 1 task(s) in the dedicated demo file
+  Delete ID: TSK-000007
+Result: demo file is ready for a fresh run.
+
+=== Operation: Create task ===
+Input:
+  Name: Prepare TaskFlow release
+  Description: Review the Sector 01 task module
+  Priority: High
+  Duration: 120 minute(s)
+  Deadline: 2099-12-31
+  Type: Development
+  Status: Pending
+Result: created task TSK-000008.
+
+=== Operation: Create second task ===
+Input:
+  Name: Write release notes
+  Description: Document the task-management workflow
+  Priority: Medium
+  Duration: 45 minute(s)
+  Deadline: 2099-12-30
+  Type: Documentation
+  Status: Ready
+Result: created task TSK-000009.
+
+=== Operation: View all tasks ===
+Input: show every stored task
+TSK-000008 | Prepare TaskFlow release | High | 120 min | 2099-12-31 | Development | Pending
+  Review the Sector 01 task module
+TSK-000009 | Write release notes | Medium | 45 min | 2099-12-30 | Documentation | Ready
+  Document the task-management workflow
+
+=== Operation: Edit task ===
+Input task ID: TSK-000008
+Replacement values:
+  Name: Prepare TaskFlow Sector 01 release
+  Description: Review the Sector 01 task module
+  Priority: High
+  Duration: 120 minute(s)
+  Deadline: 2099-12-31
+  Type: Development
+  Status: In Progress
+Result: task updated.
+
+=== Operation: Search tasks ===
+Input query: Sector 01
+Result: found 1 task(s).
+TSK-000008 | Prepare TaskFlow Sector 01 release | High | 120 min | 2099-12-31 | Development | In Progress
+  Review the Sector 01 task module
+
+=== Operation: Filter tasks ===
+Input: priority=High, status=any, type=any
+Result: found 1 task(s).
+TSK-000008 | Prepare TaskFlow Sector 01 release | High | 120 min | 2099-12-31 | Development | In Progress
+  Review the Sector 01 task module
+
+=== Operation: Sort tasks ===
+Input: deadline ascending
+Result: 2 task(s), earliest deadline first.
+TSK-000009 | Write release notes | Medium | 45 min | 2099-12-30 | Documentation | Ready
+  Document the task-management workflow
+TSK-000008 | Prepare TaskFlow Sector 01 release | High | 120 min | 2099-12-31 | Development | In Progress
+  Review the Sector 01 task module
+
+=== Operation: Reject invalid task (failure case) ===
+Input:
+  Name: Invalid demo task
+  Description: Review the Sector 01 task module
+  Priority: High
+  Duration: 120 minute(s)
+  Deadline: 2027-02-30
+  Type: Development
+  Status: Pending
+Result: rejected without changing the task list: Deadline must be a real date or local date-time in YYYY-MM-DD[THH:MM] format.
+
+=== Operation: Delete task ===
+Input task ID: TSK-000009
+Result: deleted task TSK-000009.
+
+=== Operation: Save tasks ===
+Input file: build/sector-01-demo-tasks.csv
+Result: saved 1 task(s).
+
+=== Final task list (loaded from disk) ===
+Persistence result: reloaded 1 task(s) from build/sector-01-demo-tasks.csv.
+TSK-000008 | Prepare TaskFlow Sector 01 release | High | 120 min | 2099-12-31 | Development | In Progress
+  Review the Sector 01 task module
