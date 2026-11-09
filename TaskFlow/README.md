@@ -239,6 +239,25 @@ overlapping records, bulk validation and all-or-nothing saving, empty lists,
 CRUD, default/reset behavior, summaries, CSV persistence, malformed files, and
 Sector 01 regression cases.
 
+## Sector 03 - Dependency Management
+
+The main menu includes a `Dependency Management` submenu for guided, quick,
+and bulk insertion of prerequisite relationships between tasks. It validates
+missing task IDs, duplicate dependency records, self-dependencies, and cycles,
+then saves a separate `data/dependencies.csv` file without touching the task or
+availability CSV data.
+
+Dependency records are stored as `DEPENDENT_TASK_ID,PREREQUISITE_TASK_ID` and
+are loaded automatically on startup. A task is ready only when every
+prerequisite is marked `Completed`; `Pending`, `Ready`, `In Progress`, and
+`Overdue` do not satisfy a prerequisite. Bulk submission rejects the entire
+batch if any row is invalid or would introduce a cycle, and the menu protects
+`TaskManager` deletions when other tasks still depend on the task being removed.
+
+```powershell
+.\build\taskflow.exe --demo sector-03
+```
+
 ## Complete interactive walkthrough
 
 Starting with an empty `data/tasks.csv`, the following values were entered
@@ -310,12 +329,18 @@ reported `Saved 0 task(s).`; choice 0 then saved and exited.
 - `cpp_modules/availability_management.cpp` implements Sector 02 validation,
   parsing, overlap checks, CRUD, bulk operations, summaries, persistence, the
   submenu, and demo.
+- `include/dependency_management.hpp` defines the dependency record model,
+  validation helpers, graph checks, and `DependencyManager` interface.
+- `cpp_modules/dependency_management.cpp` implements Sector 03 parsing,
+  validation, topological ordering, readiness checks, CSV persistence, and the
+  submenu.
 - `tests/availability_tests.cpp` contains Sector 02 unit/integration tests.
 - `c_modules/c_test.c` and `include/c_test.h` are the preserved C11 test
   module; `cpp_modules/cpp_test.cpp` and `include/cpp_test.hpp` retain the
   original C++ starter-module check.
 - `data/tasks.csv` stores Sector 01 tasks; `data/availability.csv` stores
-  Sector 02 availability separately.
+  Sector 02 availability separately; `data/dependencies.csv` stores Sector 03
+  dependency records.
 - `CMakeLists.txt` builds the modules together and registers the test target.
 
 Each task stores its ID, name, description, priority, duration in minutes,

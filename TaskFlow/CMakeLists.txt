@@ -16,6 +16,7 @@ add_executable(taskflow
     cpp_modules/cpp_test.cpp
     cpp_modules/task_management.cpp
     cpp_modules/availability_management.cpp
+    cpp_modules/dependency_management.cpp
     tests/task_management_tests.cpp
     tests/availability_tests.cpp
 )

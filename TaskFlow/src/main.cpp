@@ -1,6 +1,7 @@
 #include "c_test.h"
 #include "cpp_test.hpp"
 #include "availability_management.hpp"
+#include "dependency_management.hpp"
 #include "task_management.hpp"
 
 #include <filesystem>
@@ -52,6 +53,11 @@ int main(int argc, char* argv[])
         && std::string(argv[2]) == "sector-02") {
         return taskflow::runSector02Demo(
             "build/sector-02-demo-availability.csv");
+    }
+    if (command == "--demo" && argc == 3
+        && std::string(argv[2]) == "sector-03") {
+        return taskflow::runSector03Demo(
+            "build/sector-03-demo-dependencies.csv");
     }
     if (command == "--test" && argc <= 3) {
         const std::filesystem::path directory = argc == 3

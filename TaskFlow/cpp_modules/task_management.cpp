@@ -1,5 +1,6 @@
 #include "task_management.hpp"
 #include "availability_management.hpp"
+#include "dependency_management.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -887,15 +888,24 @@ int runInteractiveTaskManager(const std::filesystem::path& storagePath,
         return 1;
     }
 
-    std::cout << "Loaded " << manager.all().size() << " task(s) and "
+    DependencyManager dependencyManager("data/dependencies.csv");
+    if (!dependencyManager.load(error)) {
+        std::cerr << "Could not load dependency data: " << error << '\n';
+        return 1;
+    }
+
+    std::cout << "Loaded " << manager.all().size() << " task(s), "
               << availabilityManager.all().size()
-              << " availability window(s).\n";
+              << " availability window(s), and "
+              << dependencyManager.all().size()
+              << " dependency record(s).\n";
     for (;;) {
         std::cout << "\nTaskFlow - Task and Availability Management\n"
                   << "1. Create task\n2. Edit task\n3. Delete task\n"
                   << "4. View all tasks\n5. Search tasks\n6. Filter tasks\n"
                   << "7. Sort tasks\n8. Save tasks now\n"
-                  << "9. Availability Management\n0. Save and exit\nChoice: ";
+                  << "9. Availability Management\n"
+                  << "10. Dependency Management\n0. Save and exit\nChoice: ";
         std::string choice;
         if (!std::getline(std::cin, choice)) return 0;
 
@@ -905,8 +915,12 @@ int runInteractiveTaskManager(const std::filesystem::path& storagePath,
                 std::cerr << "Could not save tasks: " << error << '\n';
                 return 1;
             }
+            if (!dependencyManager.save(error)) {
+                std::cerr << "Could not save dependencies: " << error << '\n';
+                return 1;
+            }
             if (!error.empty()) std::cerr << "Warning: " << error << '\n';
-            std::cout << "Tasks saved.\n";
+            std::cout << "Tasks and dependencies saved.\n";
             return 0;
         }
         if (choice == "1") {
@@ -936,6 +950,15 @@ int runInteractiveTaskManager(const std::filesystem::path& storagePath,
             std::cout << "\n=== Delete task ===\n";
             std::string id;
             if (!readLine("Task ID to delete: ", id)) return 0;
+            std::vector<Dependency> dependents = dependencyManager.dependentsForTask(id);
+            if (!dependents.empty()) {
+                std::cout << "Cannot delete task " << id << " because other tasks depend on it:\n";
+                for (const Dependency& dependency : dependents) {
+                    std::cout << "  " << dependency.dependentId << " depends on " << id << '\n';
+                }
+                std::cout << "Remove the dependency records first.\n";
+                continue;
+            }
             std::string confirmation;
             if (!readLine("Delete this task permanently? (yes/no): ",
                     confirmation)) return 0;
@@ -1004,6 +1027,8 @@ int runInteractiveTaskManager(const std::filesystem::path& storagePath,
             }
         } else if (choice == "9") {
             if (runAvailabilityMenu(availabilityManager) != 0) return 1;
+        } else if (choice == "10") {
+            if (runDependencyMenu(manager, dependencyManager) != 0) return 1;
         } else {
             std::cerr << "Invalid menu choice.\n";
         }
