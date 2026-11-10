@@ -61,6 +61,64 @@ struct SchedulingResult {
     std::map<std::string, TaskScheduleMetrics> metrics;
 };
 
+struct ScheduleEntry {
+    std::string taskId;
+    std::string taskName;
+    SchedulingTimePoint start;
+    SchedulingTimePoint end;
+    std::int64_t durationMinutes = 0;
+    SchedulingStrategy strategy = SchedulingStrategy::Priority;
+    std::string availabilityWindowId;
+    std::string deadline;
+    std::string dependencyState;
+    std::string selectionExplanation;
+};
+
+struct ScheduleMetrics {
+    std::size_t totalTasks = 0;
+    std::size_t scheduledTasks = 0;
+    std::size_t unscheduledTasks = 0;
+    std::size_t deadlineViolations = 0;
+    std::int64_t totalScheduledMinutes = 0;
+    std::int64_t totalAvailableMinutes = 0;
+    std::int64_t totalIdleMinutes = 0;
+    double completionPercentage = 0.0;
+};
+
+struct UnscheduledTask {
+    Task task;
+    std::string reason;
+    std::int64_t requiredMinutes = 0;
+    std::int64_t availableMinutes = 0;
+    SchedulingTimePoint deadline;
+};
+
+struct GeneratedSchedule {
+    bool valid = false;
+    std::string error;
+    SchedulingStrategy strategy = SchedulingStrategy::Priority;
+    std::vector<ScheduleEntry> entries;
+    std::vector<UnscheduledTask> unscheduledTasks;
+    ScheduleMetrics metrics;
+};
+
+class ScheduleGenerator {
+public:
+    GeneratedSchedule generate(SchedulingStrategy strategy,
+        const std::vector<Task>& tasks,
+        const std::vector<AvailabilityWindow>& availability,
+        const std::vector<Dependency>& dependencies,
+        const DependencyManager& dependencyValidator,
+        const SchedulingContext& context) const;
+
+    std::map<SchedulingStrategy, GeneratedSchedule> compareAll(
+        const std::vector<Task>& tasks,
+        const std::vector<AvailabilityWindow>& availability,
+        const std::vector<Dependency>& dependencies,
+        const DependencyManager& dependencyValidator,
+        const SchedulingContext& context) const;
+};
+
 bool parseSchedulingStrategy(const std::string& value,
     SchedulingStrategy& strategy);
 std::string toString(SchedulingStrategy strategy);
@@ -74,6 +132,7 @@ int runSchedulingMenu(const std::vector<Task>& tasks,
     const AvailabilityManager& availability,
     const DependencyManager& dependencies);
 int runSector04Demo();
+int runSector05Demo();
 int runSchedulingTests(const std::filesystem::path& testDirectory);
 
 } // namespace taskflow

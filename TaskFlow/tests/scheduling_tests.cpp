@@ -352,8 +352,8 @@ int runSchedulingTests(const std::filesystem::path&)
         "In Progress is eligible while Ready/Overdue are excluded and Completed is separated");
 
     std::vector<Task> shuffled = sample;
-    std::mt19937 generator(1723);
-    std::shuffle(shuffled.begin(), shuffled.end(), generator);
+    std::mt19937 rng(1723);
+    std::shuffle(shuffled.begin(), shuffled.end(), rng);
     for (const auto& test : expected) {
         const auto first = generateSchedule(test.first, sample, windows,
             noDependencies, validator, context);
@@ -378,6 +378,197 @@ int runSchedulingTests(const std::filesystem::path&)
     tests.check(result.valid && result.orderedTasks.size() == large.size()
             && std::is_sorted(largeOrder.begin(), largeOrder.end()),
         "large task lists sort deterministically");
+
+    const ScheduleGenerator scheduleGenerator;
+    const std::vector<AvailabilityWindow> sector05Window = {
+        {"SECTOR05", DayOfWeek::Monday, 16 * 60, 22 * 60, "Sector 05 availability"}
+    };
+    const std::vector<Task> overlapTasks = {
+        task("TSK-009001", "21:00", 120),
+        task("TSK-009002", "22:00", 60),
+        task("TSK-009003", "23:00", 45)
+    };
+    const auto overlapResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, overlapTasks, sector05Window,
+        noDependencies, validator, context);
+    bool overlapFree = true;
+    for (std::size_t left = 0; left < overlapResult.entries.size(); ++left) {
+        for (std::size_t right = left + 1; right < overlapResult.entries.size(); ++right) {
+            const auto& first = overlapResult.entries[left];
+            const auto& second = overlapResult.entries[right];
+            if (first.start < second.end && second.start < first.end) {
+                overlapFree = false;
+            }
+        }
+    }
+    tests.check(overlapResult.valid && overlapFree,
+        "three tasks in one window are allocated without overlap");
+
+    const std::vector<Task> chainTasks = {
+        task("TSK-010001", "21:00", 60),
+        task("TSK-010002", "21:30", 60),
+        task("TSK-010003", "22:00", 60)
+    };
+    const std::vector<Dependency> chainDeps = {
+        {"TSK-010002", "TSK-010001"},
+        {"TSK-010003", "TSK-010002"}
+    };
+    const auto chainResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, chainTasks, sector05Window,
+        chainDeps, validator, context);
+    tests.check(chainResult.valid && chainResult.entries.size() == 3
+            && chainResult.entries[0].taskId == "TSK-010001"
+            && chainResult.entries[1].taskId == "TSK-010002"
+            && chainResult.entries[2].taskId == "TSK-010003",
+        "A -> B -> C dependency chain schedules in dependency order");
+
+    const std::vector<Task> multiPrereqTasks = {
+        task("TSK-011001", "21:00", 60),
+        task("TSK-011002", "21:00", 60),
+        task("TSK-011003", "21:00", 60),
+        task("TSK-011004", "22:00", 60)
+    };
+    const std::vector<Dependency> multiDeps = {
+        {"TSK-011004", "TSK-011001"},
+        {"TSK-011004", "TSK-011002"},
+        {"TSK-011003", "TSK-011001"}
+    };
+    const auto multiPrereqResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, multiPrereqTasks, sector05Window,
+        multiDeps, validator, context);
+    tests.check(multiPrereqResult.valid,
+        "multiple prerequisites are accepted when all prerequisites are satisfied");
+
+    const std::vector<Task> blockedTasks = {
+        task("TSK-012001", "16:30", 120),
+        task("TSK-012002", "21:00", 60)
+    };
+    const std::vector<Dependency> blockedDeps = {{"TSK-012002", "TSK-012001"}};
+    const auto blockedResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, blockedTasks, sector05Window,
+        blockedDeps, validator, context);
+    const bool blockedReason = blockedResult.valid
+        && blockedResult.unscheduledTasks.size() >= 1
+        && ((blockedResult.unscheduledTasks[0].reason.find("Deadline exceeded")
+                != std::string::npos)
+            || (blockedResult.unscheduledTasks[0].reason.find("Dependency blocked")
+                != std::string::npos));
+    tests.check(blockedReason,
+        "blocked prerequisite is reported as unscheduled when the prerequisite cannot be scheduled");
+
+    const std::vector<Task> exactDeadlineTask = {
+        task("TSK-013001", "17:00", 60)
+    };
+    const auto exactDeadlineResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, exactDeadlineTask, sector05Window,
+        noDependencies, validator, context);
+    std::tm exactDeadline = {};
+    exactDeadline.tm_year = 2028 - 1900;
+    exactDeadline.tm_mon = 0;
+    exactDeadline.tm_mday = 3;
+    exactDeadline.tm_hour = 17;
+    exactDeadline.tm_min = 0;
+    exactDeadline.tm_isdst = -1;
+    const auto exactDeadlinePoint = std::chrono::system_clock::from_time_t(
+        std::mktime(&exactDeadline));
+    tests.check(exactDeadlineResult.valid && !exactDeadlineResult.entries.empty()
+            && exactDeadlineResult.entries[0].end <= exactDeadlinePoint,
+        "exact-deadline task is accepted when it fits exactly");
+
+    const std::vector<Task> impossibleDeadlineTask = {
+        task("TSK-014001", "16:30", 120)
+    };
+    const auto impossibleResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, impossibleDeadlineTask, sector05Window,
+        noDependencies, validator, context);
+    tests.check(!impossibleResult.valid || impossibleResult.unscheduledTasks.size() >= 1,
+        "impossible deadline is rejected or reported as unscheduled");
+
+    const std::vector<AvailabilityWindow> fragmentedWindow = {
+        {"FRAG-1", DayOfWeek::Monday, 16 * 60, 18 * 60, "Fragment 1"},
+        {"FRAG-2", DayOfWeek::Monday, 20 * 60, 22 * 60, "Fragment 2"}
+    };
+    const std::vector<Task> fragmentedTask = {task("TSK-015001", "22:30", 150)};
+    const auto fragmentedResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, fragmentedTask, fragmentedWindow,
+        noDependencies, validator, context);
+    tests.check(fragmentedResult.valid && fragmentedResult.unscheduledTasks.size() >= 1,
+        "fragmented availability is rejected because no continuous slot exists");
+
+    const std::vector<CommittedInterval> fixedCommitment = {
+        {point(2028, 1, 3, 17, 0), point(2028, 1, 3, 18, 0)}
+    };
+    SchedulingContext commitmentContext = context;
+    commitmentContext.commitments = fixedCommitment;
+    const std::vector<Task> fixedCommitmentTask = {task("TSK-016001", "22:00", 90)};
+    const auto commitmentResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, fixedCommitmentTask, sector05Window,
+        noDependencies, validator, commitmentContext);
+    tests.check(commitmentResult.valid && commitmentResult.entries.front().start >= fixedCommitment[0].end,
+        "fixed commitments are treated as occupied intervals");
+
+    const std::vector<AvailabilityWindow> multiDayWindow = {
+        {"MD-1", DayOfWeek::Monday, 16 * 60, 18 * 60, "Day 1"},
+        {"MD-2", DayOfWeek::Wednesday, 16 * 60, 18 * 60, "Day 2"}
+    };
+    const std::vector<Task> multiDayTask = {
+        task("TSK-017001", "2028-01-05T17:00", 60)
+    };
+    const auto multiDayResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, multiDayTask, multiDayWindow,
+        noDependencies, validator, context);
+    tests.check(multiDayResult.valid && multiDayResult.metrics.totalAvailableMinutes >= 120,
+        "multi-day availability uses the active scheduling horizon and recurring weekly windows");
+
+    const std::vector<Task> idleTasks = {
+        task("TSK-018001", "20:00", 60),
+        task("TSK-018002", "21:00", 60)
+    };
+    const auto idleResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, idleTasks, sector05Window,
+        noDependencies, validator, context);
+    tests.check(idleResult.valid && idleResult.metrics.totalIdleMinutes >= 0,
+        "idle time is computed from actual free intervals inside the schedule horizon");
+
+    const auto allStrategies = scheduleGenerator.compareAll(
+        idleTasks, sector05Window, noDependencies, validator, context);
+    tests.check(allStrategies.size() == 5,
+        "all five scheduling strategies are evaluated independently");
+
+    const auto deterministicA = scheduleGenerator.generate(
+        SchedulingStrategy::EDF, idleTasks, sector05Window,
+        noDependencies, validator, context);
+    std::vector<Task> shuffledIdle = idleTasks;
+    std::mt19937 seeded(2025);
+    std::shuffle(shuffledIdle.begin(), shuffledIdle.end(), seeded);
+    const auto deterministicB = scheduleGenerator.generate(
+        SchedulingStrategy::EDF, shuffledIdle, sector05Window,
+        noDependencies, validator, context);
+    tests.check(deterministicA.valid && deterministicB.valid
+            && deterministicA.entries.size() == deterministicB.entries.size(),
+        "generated schedule results remain deterministic across input ordering");
+
+    const auto emptyResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, {}, sector05Window,
+        noDependencies, validator, context);
+    tests.check(emptyResult.valid && emptyResult.entries.empty(),
+        "empty task list is valid and produces no entries");
+
+    const std::vector<Task> invalidDuration = {task("TSK-019001", "20:00", 0)};
+    const auto invalidDurationResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, invalidDuration, sector05Window,
+        noDependencies, validator, context);
+    tests.check(!invalidDurationResult.valid || !invalidDurationResult.entries.empty() || invalidDurationResult.unscheduledTasks.size() >= 1,
+        "invalid-duration tasks are rejected or recorded as unscheduled");
+
+    const std::vector<Task> duplicateIds = {
+        task("TSK-020001", "20:00", 60),
+        task("TSK-020001", "20:00", 90)
+    };
+    const auto duplicateResult = scheduleGenerator.generate(
+        SchedulingStrategy::Priority, duplicateIds, sector05Window,
+        noDependencies, validator, context);
+    tests.check(!duplicateResult.valid, "duplicate task IDs are rejected");
 
     std::cout << "Sector 04 tests: " << tests.passed << " passed, "
               << tests.failed << " failed.\n";

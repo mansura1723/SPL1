@@ -2,9 +2,12 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <ctime>
+#include <iomanip>
 #include <iostream>
 #include <map>
+#include <sstream>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -441,6 +444,100 @@ bool readRank(const Task& task, int& rank)
     }
 }
 
+bool hasActiveCommitment(SchedulingTimePoint start, SchedulingTimePoint end,
+    const std::vector<CommittedInterval>& commitments)
+{
+    const std::int64_t startValue = minuteValue(start);
+    const std::int64_t endValue = minuteValue(end);
+    for (const CommittedInterval& commitment : commitments) {
+        const std::int64_t commitmentStart = minuteValue(commitment.start);
+        const std::int64_t commitmentEnd = minuteValue(commitment.end);
+        if (startValue < commitmentEnd && endValue > commitmentStart) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool findSchedulingSlot(const Task& task,
+    const std::vector<AvailabilityWindow>& availability,
+    const std::vector<CommittedInterval>& commitments,
+    const SchedulingContext& context,
+    SchedulingTimePoint earliestStart,
+    SchedulingTimePoint deadline,
+    SchedulingTimePoint& start, SchedulingTimePoint& end,
+    std::string& windowId)
+{
+    const std::int64_t durationMinutes = task.durationMinutes;
+    if (durationMinutes <= 0) return false;
+
+    const std::time_t nowValue = std::chrono::system_clock::to_time_t(context.now);
+    std::tm nowDate = {};
+    if (!localTime(nowValue, nowDate)) return false;
+    nowDate.tm_hour = 0;
+    nowDate.tm_min = 0;
+    nowDate.tm_sec = 0;
+    nowDate.tm_isdst = -1;
+
+    for (int dayOffset = 0; dayOffset <= 366; ++dayOffset) {
+        std::tm currentDate = nowDate;
+        currentDate.tm_mday += dayOffset;
+        const std::time_t currentEpoch = std::mktime(&currentDate);
+        if (currentEpoch == static_cast<std::time_t>(-1)) continue;
+        const int weekday = weekdayIndex(currentDate);
+
+        for (const AvailabilityWindow& window : availability) {
+            if (static_cast<int>(window.day) != weekday) continue;
+            std::tm begin = currentDate;
+            begin.tm_hour = window.startMinute / 60;
+            begin.tm_min = window.startMinute % 60;
+            begin.tm_sec = 0;
+            begin.tm_isdst = -1;
+            const std::time_t beginValue = std::mktime(&begin);
+            if (beginValue == static_cast<std::time_t>(-1)) continue;
+
+            std::tm finish = currentDate;
+            finish.tm_hour = window.endMinute / 60;
+            finish.tm_min = window.endMinute % 60;
+            finish.tm_sec = 0;
+            finish.tm_isdst = -1;
+            const std::time_t finishValue = std::mktime(&finish);
+            if (finishValue == static_cast<std::time_t>(-1)) continue;
+
+            const auto windowStart = std::chrono::system_clock::from_time_t(beginValue);
+            const auto windowEnd = std::chrono::system_clock::from_time_t(finishValue);
+            auto tentativeStart = std::max(earliestStart, windowStart);
+            while (tentativeStart + std::chrono::minutes(durationMinutes) <= windowEnd) {
+                const auto tentativeEnd = tentativeStart + std::chrono::minutes(durationMinutes);
+                if (tentativeEnd <= deadline && !hasActiveCommitment(tentativeStart, tentativeEnd, commitments)) {
+                    start = tentativeStart;
+                    end = tentativeEnd;
+                    windowId = window.id;
+                    return true;
+                }
+
+                tentativeStart += std::chrono::minutes(1);
+                if (tentativeStart >= windowEnd || tentativeStart >= deadline) break;
+            }
+        }
+    }
+    return false;
+}
+
+std::string formatScheduleTime(SchedulingTimePoint time)
+{
+    const std::time_t raw = std::chrono::system_clock::to_time_t(time);
+    std::tm local = {};
+#ifdef _WIN32
+    if (localtime_s(&local, &raw) != 0) return "invalid time";
+#else
+    if (localtime_r(&raw, &local) == nullptr) return "invalid time";
+#endif
+    std::ostringstream output;
+    output << std::put_time(&local, "%Y-%m-%d %H:%M");
+    return output.str();
+}
+
 SchedulingTimePoint localPoint(int year, int month, int day, int hour, int minute)
 {
     std::time_t value = 0;
@@ -448,6 +545,75 @@ SchedulingTimePoint localPoint(int year, int month, int day, int hour, int minut
         throw std::runtime_error("Demo/test time is not valid in the local timezone.");
     }
     return std::chrono::system_clock::from_time_t(value);
+}
+
+std::string explainSchedulingSelection(const Task& task,
+    SchedulingStrategy strategy,
+    const TaskScheduleMetrics& metrics)
+{
+    switch (strategy) {
+    case SchedulingStrategy::Priority:
+        return "Selected by Priority Based because its priority rank outranked other eligible tasks; deadline " + task.deadline + ".";
+    case SchedulingStrategy::EDF:
+        return "Selected by Earliest Deadline First because its deadline is earliest among the eligible tasks; slack " + std::to_string(metrics.slackMinutes) + " minutes.";
+    case SchedulingStrategy::SJF:
+        return "Selected by Shortest Job First because it has the shortest remaining duration among the eligible tasks; duration " + std::to_string(task.durationMinutes) + " minutes.";
+    case SchedulingStrategy::LST:
+        return "Selected by Least Slack Time because it has the least slack among eligible tasks; slack " + std::to_string(metrics.slackMinutes) + " minutes.";
+    case SchedulingStrategy::Custom:
+        return "Selected by User Defined Ranking from the supplied custom rank; deadline " + task.deadline + ".";
+    default:
+        return "Selected under the active scheduling strategy; deadline " + task.deadline + ".";
+    }
+}
+
+std::string classifyUnscheduledReason(const Task& task,
+    const std::vector<AvailabilityWindow>& availability,
+    SchedulingTimePoint deadline,
+    SchedulingTimePoint now,
+    bool dependencyBlocked,
+    bool invalidData)
+{
+    if (invalidData) {
+        if (task.durationMinutes < 1 || task.durationMinutes > 1000000) {
+            return "Invalid task data: duration is outside the valid 1..1,000,000 minute range.";
+        }
+        return "Invalid task data: deadline is malformed or not in a supported format.";
+    }
+    if (dependencyBlocked) {
+        return "Dependency blocked: prerequisite tasks are not yet complete.";
+    }
+    if (availability.empty()) {
+        return "No available window: no recurring availability windows are configured.";
+    }
+    if (deadline <= now) {
+        return "Deadline exceeded: the task cannot finish before its deadline.";
+    }
+
+    std::int64_t availableMinutes = 0;
+    std::string error;
+    if (availableWorkMinutes(now, deadline, availability, {}, availableMinutes, error)
+        && availableMinutes < task.durationMinutes) {
+        return "Deadline exceeded: the task cannot finish before its deadline.";
+    }
+    return "Insufficient continuous availability before the deadline.";
+}
+
+std::int64_t totalAvailableMinutesForHorizon(const SchedulingContext& context,
+    SchedulingTimePoint horizonEnd,
+    const std::vector<AvailabilityWindow>& availability,
+    const std::vector<CommittedInterval>& commitments,
+    std::string& error)
+{
+    std::int64_t total = 0;
+    if (horizonEnd <= context.now) {
+        return 0;
+    }
+    if (!availableWorkMinutes(context.now, horizonEnd, availability, commitments,
+            total, error)) {
+        return 0;
+    }
+    return total;
 }
 
 } // namespace
@@ -474,6 +640,237 @@ std::string toString(SchedulingStrategy strategy)
     case SchedulingStrategy::Custom: return "User Defined Ranking";
     }
     return "Invalid";
+}
+
+GeneratedSchedule ScheduleGenerator::generate(SchedulingStrategy strategy,
+    const std::vector<Task>& tasks,
+    const std::vector<AvailabilityWindow>& availability,
+    const std::vector<Dependency>& dependencies,
+    const DependencyManager& dependencyValidator,
+    const SchedulingContext& context) const
+{
+    GeneratedSchedule schedule;
+    schedule.strategy = strategy;
+    const SchedulingResult order = generateSchedule(strategy, tasks, availability,
+        dependencies, dependencyValidator, context);
+    if (!order.valid) {
+        schedule.valid = false;
+        schedule.error = order.error;
+        return schedule;
+    }
+
+    std::unordered_set<std::string> blockedIds;
+    for (const BlockedTask& blocked : order.blockedTasks) {
+        blockedIds.insert(blocked.task.id);
+    }
+    std::unordered_set<std::string> excludedIds;
+    for (const ExcludedTask& excluded : order.excludedTasks) {
+        excludedIds.insert(excluded.task.id);
+    }
+
+    SchedulingTimePoint horizonEnd = context.now;
+    for (const Task& task : tasks) {
+        if (task.status == Status::Completed) continue;
+        SchedulingTimePoint deadline{};
+        if (parseDeadline(task.deadline, context.now, deadline)
+            && deadline > horizonEnd) {
+            horizonEnd = deadline;
+        }
+    }
+    if (horizonEnd <= context.now) horizonEnd = context.now + std::chrono::hours(24);
+
+    std::string horizonError;
+    const std::int64_t totalAvailableMinutes =
+        totalAvailableMinutesForHorizon(context, horizonEnd, availability,
+            context.commitments, horizonError);
+    schedule.metrics.totalAvailableMinutes = totalAvailableMinutes;
+
+    std::vector<CommittedInterval> scheduledCommitments = context.commitments;
+    std::unordered_map<std::string, SchedulingTimePoint> taskEndTimes;
+    std::unordered_set<std::string> scheduledTaskIds;
+    std::unordered_set<std::string> attemptedTaskIds;
+
+    while (true) {
+        std::vector<Task> readyTasks;
+        for (const Task& task : tasks) {
+            if (task.status == Status::Completed || excludedIds.count(task.id)
+                || scheduledTaskIds.count(task.id)
+                || attemptedTaskIds.count(task.id)) {
+                continue;
+            }
+            bool prerequisitesSatisfied = true;
+            for (const Dependency& dependency : dependencies) {
+                if (dependency.dependentId != task.id) continue;
+                if (!scheduledTaskIds.count(dependency.prerequisiteId)) {
+                    prerequisitesSatisfied = false;
+                    break;
+                }
+            }
+            if (prerequisitesSatisfied) readyTasks.push_back(task);
+        }
+        if (readyTasks.empty()) break;
+
+        std::vector<Task> provisional = tasks;
+        for (const auto& scheduled : scheduledTaskIds) {
+            auto current = std::find_if(provisional.begin(), provisional.end(),
+                [&scheduled](const Task& item) { return item.id == scheduled; });
+            if (current != provisional.end()) current->status = Status::Completed;
+        }
+        const SchedulingResult ranking = generateSchedule(strategy, provisional,
+            availability, dependencies, dependencyValidator, context);
+        const Task* chosenTask = nullptr;
+        if (ranking.valid) {
+            for (const Task& candidate : ranking.orderedTasks) {
+                const auto ready = std::find_if(readyTasks.begin(), readyTasks.end(),
+                    [&candidate](const Task& item) { return item.id == candidate.id; });
+                if (ready != readyTasks.end()) {
+                    chosenTask = &(*ready);
+                    break;
+                }
+            }
+        }
+        if (chosenTask == nullptr) {
+            chosenTask = &readyTasks.front();
+        }
+
+        SchedulingTimePoint deadline{};
+        if (!parseDeadline(chosenTask->deadline, context.now, deadline)) {
+            UnscheduledTask item;
+            item.task = *chosenTask;
+            item.reason = classifyUnscheduledReason(*chosenTask, availability,
+                deadline, context.now, false, true);
+            item.requiredMinutes = chosenTask->durationMinutes;
+            item.deadline = deadline;
+            item.availableMinutes = 0;
+            schedule.unscheduledTasks.push_back(item);
+            attemptedTaskIds.insert(chosenTask->id);
+            continue;
+        }
+
+        SchedulingTimePoint earliestStart = context.now;
+        for (const Dependency& dependency : dependencies) {
+            if (dependency.dependentId != chosenTask->id) continue;
+            const auto prerequisiteEnd = taskEndTimes.find(dependency.prerequisiteId);
+            if (prerequisiteEnd != taskEndTimes.end()) {
+                earliestStart = std::max(earliestStart, prerequisiteEnd->second);
+            }
+        }
+
+        SchedulingTimePoint start{};
+        SchedulingTimePoint end{};
+        std::string windowId;
+        if (!findSchedulingSlot(*chosenTask, availability, scheduledCommitments,
+                context, earliestStart, deadline, start, end, windowId)) {
+            std::string reason = classifyUnscheduledReason(*chosenTask,
+                availability, deadline, context.now, false, false);
+            UnscheduledTask item;
+            item.task = *chosenTask;
+            item.reason = reason;
+            item.requiredMinutes = chosenTask->durationMinutes;
+            item.deadline = deadline;
+            item.availableMinutes = 0;
+            schedule.unscheduledTasks.push_back(item);
+            attemptedTaskIds.insert(chosenTask->id);
+            continue;
+        }
+
+        TaskScheduleMetrics selectionMetrics;
+        const auto metricsIt = order.metrics.find(chosenTask->id);
+        if (metricsIt != order.metrics.end()) {
+            selectionMetrics = metricsIt->second;
+        }
+
+        ScheduleEntry entry;
+        entry.taskId = chosenTask->id;
+        entry.taskName = chosenTask->name;
+        entry.start = start;
+        entry.end = end;
+        entry.durationMinutes = chosenTask->durationMinutes;
+        entry.strategy = strategy;
+        entry.availabilityWindowId = windowId;
+        entry.deadline = chosenTask->deadline;
+        entry.dependencyState = "Eligible";
+        entry.selectionExplanation = explainSchedulingSelection(*chosenTask,
+            strategy, selectionMetrics);
+        schedule.entries.push_back(entry);
+        scheduledCommitments.push_back({entry.start, entry.end});
+        scheduledTaskIds.insert(chosenTask->id);
+        taskEndTimes[chosenTask->id] = entry.end;
+    }
+
+    for (const Task& task : tasks) {
+        if (task.status == Status::Completed || scheduledTaskIds.count(task.id)
+            || attemptedTaskIds.count(task.id) || excludedIds.count(task.id)) {
+            continue;
+        }
+        if (blockedIds.count(task.id)) {
+            UnscheduledTask item;
+            item.task = task;
+            item.reason = "Dependency blocked: prerequisite tasks are not yet complete.";
+            item.requiredMinutes = task.durationMinutes;
+            item.deadline = SchedulingTimePoint{};
+            item.availableMinutes = 0;
+            schedule.unscheduledTasks.push_back(item);
+            continue;
+        }
+
+        SchedulingTimePoint deadline{};
+        bool invalidData = false;
+        if (!parseDeadline(task.deadline, context.now, deadline)) {
+            invalidData = true;
+        }
+        UnscheduledTask item;
+        item.task = task;
+        item.requiredMinutes = task.durationMinutes;
+        item.deadline = deadline;
+        item.reason = classifyUnscheduledReason(task, availability, deadline,
+            context.now, false, invalidData);
+        item.availableMinutes = 0;
+        schedule.unscheduledTasks.push_back(item);
+    }
+
+    schedule.valid = true;
+    schedule.metrics.totalTasks = tasks.size();
+    schedule.metrics.scheduledTasks = schedule.entries.size();
+    schedule.metrics.unscheduledTasks = schedule.unscheduledTasks.size();
+    for (const ScheduleEntry& entry : schedule.entries) {
+        schedule.metrics.totalScheduledMinutes += entry.durationMinutes;
+        SchedulingTimePoint deadline{};
+        if (parseDeadline(entry.deadline, context.now, deadline)
+            && entry.end > deadline) {
+            ++schedule.metrics.deadlineViolations;
+        }
+    }
+    schedule.metrics.totalIdleMinutes = std::max<std::int64_t>(0,
+        schedule.metrics.totalAvailableMinutes - schedule.metrics.totalScheduledMinutes);
+    if (schedule.metrics.totalTasks > 0) {
+        schedule.metrics.completionPercentage =
+            (100.0 * schedule.metrics.scheduledTasks)
+            / static_cast<double>(schedule.metrics.totalTasks);
+    }
+    return schedule;
+}
+
+std::map<SchedulingStrategy, GeneratedSchedule> ScheduleGenerator::compareAll(
+    const std::vector<Task>& tasks,
+    const std::vector<AvailabilityWindow>& availability,
+    const std::vector<Dependency>& dependencies,
+    const DependencyManager& dependencyValidator,
+    const SchedulingContext& context) const
+{
+    std::map<SchedulingStrategy, GeneratedSchedule> result;
+    const SchedulingStrategy strategies[] = {
+        SchedulingStrategy::Priority,
+        SchedulingStrategy::EDF,
+        SchedulingStrategy::SJF,
+        SchedulingStrategy::LST,
+        SchedulingStrategy::Custom
+    };
+    for (const SchedulingStrategy strategy : strategies) {
+        result[strategy] = generate(strategy, tasks, availability, dependencies,
+            dependencyValidator, context);
+    }
+    return result;
 }
 
 SchedulingResult generateSchedule(SchedulingStrategy strategy,
@@ -730,6 +1127,90 @@ int runSector04Demo()
               << (!invalidInput.valid ? "PASS - " + invalidInput.error
                                       : "FAIL - missing rank accepted") << '\n';
     if (invalidInput.valid) return 1;
+    return 0;
+}
+
+int runSector05Demo()
+{
+    std::cout << "=== TaskFlow Sector 05: Automatic Schedule Generator ===\n";
+    const std::vector<Task> tasks = {
+        {"TSK-000001", "Task A", "", Priority::Critical, 120, "20:00",
+            "Demo", Status::Pending},
+        {"TSK-000002", "Task B", "", Priority::High, 60, "18:00",
+            "Demo", Status::Pending},
+        {"TSK-000003", "Task C", "", Priority::Critical, 30, "19:00",
+            "Demo", Status::Pending},
+        {"TSK-000004", "Task D", "", Priority::Medium, 45, "21:00",
+            "Demo", Status::Pending},
+        {"TSK-000005", "Blocked dependent", "", Priority::Low, 25,
+            "21:30", "Demo", Status::Pending},
+        {"TSK-000006", "Already completed", "", Priority::Low, 10,
+            "2028-01-03", "Demo", Status::Completed}
+    };
+    const std::vector<AvailabilityWindow> windows = {
+        {"DEMO-MON", DayOfWeek::Monday, 16 * 60, 22 * 60, "Demo availability"}
+    };
+    const std::vector<Dependency> dependencies = {
+        {"TSK-000005", "TSK-000001"}
+    };
+    DependencyManager validator("unused-sector-05-demo.csv");
+    SchedulingContext context;
+    context.now = localPoint(2028, 1, 3, 16, 0);
+    context.customRanks = {
+        {"TSK-000001", 4}, {"TSK-000002", 2},
+        {"TSK-000003", 3}, {"TSK-000004", 1},
+        {"TSK-000005", 5}
+    };
+
+    const ScheduleGenerator generator;
+    const auto comparison = generator.compareAll(tasks, windows, dependencies,
+        validator, context);
+    const GeneratedSchedule* bestSchedule = nullptr;
+    SchedulingStrategy bestStrategy = SchedulingStrategy::Priority;
+    for (const auto& entry : comparison) {
+        const SchedulingStrategy strategy = entry.first;
+        const GeneratedSchedule& generated = entry.second;
+        if (!generated.valid) continue;
+        if (bestSchedule == nullptr
+            || generated.metrics.scheduledTasks > bestSchedule->metrics.scheduledTasks
+            || (generated.metrics.scheduledTasks
+                    == bestSchedule->metrics.scheduledTasks
+                && generated.metrics.totalIdleMinutes
+                    < bestSchedule->metrics.totalIdleMinutes)
+            || (generated.metrics.scheduledTasks
+                    == bestSchedule->metrics.scheduledTasks
+                && generated.metrics.totalIdleMinutes
+                    == bestSchedule->metrics.totalIdleMinutes
+                && generated.metrics.deadlineViolations
+                    < bestSchedule->metrics.deadlineViolations)) {
+            bestSchedule = &generated;
+            bestStrategy = strategy;
+        }
+
+        std::cout << "\nStrategy: " << toString(strategy) << "\n";
+        std::cout << "Valid: " << (generated.valid ? "yes" : "no") << '\n';
+        if (!generated.valid) {
+            std::cout << generated.error << '\n';
+            continue;
+        }
+        std::cout << "Scheduled tasks: " << generated.metrics.scheduledTasks << '\n';
+        std::cout << "Idle minutes: " << generated.metrics.totalIdleMinutes << '\n';
+        for (const ScheduleEntry& item : generated.entries) {
+            std::cout << "  " << item.taskId << " -> " << item.availabilityWindowId
+                      << " @ " << formatScheduleTime(item.start)
+                      << " to " << formatScheduleTime(item.end)
+                      << " | " << item.selectionExplanation << '\n';
+        }
+    }
+    if (bestSchedule != nullptr) {
+        std::cout << "\nBest strategy by actual schedule metrics: "
+                  << toString(bestStrategy)
+                  << " (scheduled " << bestSchedule->metrics.scheduledTasks
+                  << " tasks, idle " << bestSchedule->metrics.totalIdleMinutes
+                  << " minutes, available "
+                  << bestSchedule->metrics.totalAvailableMinutes << " minutes)\n";
+    }
+    std::cout << "\n=== Sector 05 demo complete ===\n";
     return 0;
 }
 

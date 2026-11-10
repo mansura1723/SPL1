@@ -32,6 +32,7 @@ void printUsage()
               << "  TaskFlow.exe --demo sector-02\n"
               << "  TaskFlow.exe --demo sector-03\n"
               << "  TaskFlow.exe --demo sector-04\n"
+              << "  TaskFlow.exe --demo sector-05\n"
               << "  TaskFlow.exe --test [test-data-directory]\n";
 }
 
@@ -65,6 +66,10 @@ int main(int argc, char* argv[])
     if (command == "--demo" && argc == 3
         && std::string(argv[2]) == "sector-04") {
         return taskflow::runSector04Demo();
+    }
+    if (command == "--demo" && argc == 3
+        && std::string(argv[2]) == "sector-05") {
+        return taskflow::runSector05Demo();
     }
     if (command == "--test" && argc <= 3) {
         const std::filesystem::path directory = argc == 3

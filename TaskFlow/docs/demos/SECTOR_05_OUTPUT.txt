@@ -1,0 +1,50 @@
+=== TaskFlow Sector 05: Automatic Schedule Generator ===
+
+Strategy: Priority Based
+Valid: yes
+Scheduled tasks: 4
+Idle minutes: 110
+  TSK-000003 -> DEMO-MON @ 2028-01-03 16:00 to 2028-01-03 16:30 | Selected by Priority Based because its priority rank outranked other eligible tasks; deadline 19:00.
+  TSK-000001 -> DEMO-MON @ 2028-01-03 16:30 to 2028-01-03 18:30 | Selected by Priority Based because its priority rank outranked other eligible tasks; deadline 20:00.
+  TSK-000004 -> DEMO-MON @ 2028-01-03 18:30 to 2028-01-03 19:15 | Selected by Priority Based because its priority rank outranked other eligible tasks; deadline 21:00.
+  TSK-000005 -> DEMO-MON @ 2028-01-03 19:15 to 2028-01-03 19:40 | Selected by Priority Based because its priority rank outranked other eligible tasks; deadline 21:30.
+
+Strategy: Earliest Deadline First (EDF)
+Valid: yes
+Scheduled tasks: 5
+Idle minutes: 50
+  TSK-000002 -> DEMO-MON @ 2028-01-03 16:00 to 2028-01-03 17:00 | Selected by Earliest Deadline First because its deadline is earliest among the eligible tasks; slack 60 minutes.
+  TSK-000003 -> DEMO-MON @ 2028-01-03 17:00 to 2028-01-03 17:30 | Selected by Earliest Deadline First because its deadline is earliest among the eligible tasks; slack 150 minutes.
+  TSK-000001 -> DEMO-MON @ 2028-01-03 17:30 to 2028-01-03 19:30 | Selected by Earliest Deadline First because its deadline is earliest among the eligible tasks; slack 120 minutes.
+  TSK-000004 -> DEMO-MON @ 2028-01-03 19:30 to 2028-01-03 20:15 | Selected by Earliest Deadline First because its deadline is earliest among the eligible tasks; slack 255 minutes.
+  TSK-000005 -> DEMO-MON @ 2028-01-03 20:15 to 2028-01-03 20:40 | Selected by Earliest Deadline First because its deadline is earliest among the eligible tasks; slack 0 minutes.
+
+Strategy: Shortest Job First (SJF)
+Valid: yes
+Scheduled tasks: 4
+Idle minutes: 110
+  TSK-000003 -> DEMO-MON @ 2028-01-03 16:00 to 2028-01-03 16:30 | Selected by Shortest Job First because it has the shortest remaining duration among the eligible tasks; duration 30 minutes.
+  TSK-000004 -> DEMO-MON @ 2028-01-03 16:30 to 2028-01-03 17:15 | Selected by Shortest Job First because it has the shortest remaining duration among the eligible tasks; duration 45 minutes.
+  TSK-000001 -> DEMO-MON @ 2028-01-03 17:15 to 2028-01-03 19:15 | Selected by Shortest Job First because it has the shortest remaining duration among the eligible tasks; duration 120 minutes.
+  TSK-000005 -> DEMO-MON @ 2028-01-03 19:15 to 2028-01-03 19:40 | Selected by Shortest Job First because it has the shortest remaining duration among the eligible tasks; duration 25 minutes.
+
+Strategy: Least Slack Time First (LST)
+Valid: yes
+Scheduled tasks: 4
+Idle minutes: 80
+  TSK-000002 -> DEMO-MON @ 2028-01-03 16:00 to 2028-01-03 17:00 | Selected by Least Slack Time because it has the least slack among eligible tasks; slack 60 minutes.
+  TSK-000001 -> DEMO-MON @ 2028-01-03 17:00 to 2028-01-03 19:00 | Selected by Least Slack Time because it has the least slack among eligible tasks; slack 120 minutes.
+  TSK-000004 -> DEMO-MON @ 2028-01-03 19:00 to 2028-01-03 19:45 | Selected by Least Slack Time because it has the least slack among eligible tasks; slack 255 minutes.
+  TSK-000005 -> DEMO-MON @ 2028-01-03 19:45 to 2028-01-03 20:10 | Selected by Least Slack Time because it has the least slack among eligible tasks; slack 0 minutes.
+
+Strategy: User Defined Ranking
+Valid: yes
+Scheduled tasks: 3
+Idle minutes: 195
+  TSK-000004 -> DEMO-MON @ 2028-01-03 16:00 to 2028-01-03 16:45 | Selected by User Defined Ranking from the supplied custom rank; deadline 21:00.
+  TSK-000002 -> DEMO-MON @ 2028-01-03 16:45 to 2028-01-03 17:45 | Selected by User Defined Ranking from the supplied custom rank; deadline 18:00.
+  TSK-000003 -> DEMO-MON @ 2028-01-03 17:45 to 2028-01-03 18:15 | Selected by User Defined Ranking from the supplied custom rank; deadline 19:00.
+
+Best strategy by actual schedule metrics: Earliest Deadline First (EDF) (scheduled 5 tasks, idle 50 minutes, available 330 minutes)
+
+=== Sector 05 demo complete ===
