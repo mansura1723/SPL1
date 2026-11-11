@@ -33,6 +33,7 @@ struct SchedulingContext {
     SchedulingTimePoint now;
     std::vector<CommittedInterval> commitments;
     std::map<std::string, int> customRanks;
+    std::map<std::string, SchedulingTimePoint> fixedTaskEndTimes;
 };
 
 struct TaskScheduleMetrics {

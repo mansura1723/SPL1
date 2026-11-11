@@ -686,8 +686,12 @@ GeneratedSchedule ScheduleGenerator::generate(SchedulingStrategy strategy,
     schedule.metrics.totalAvailableMinutes = totalAvailableMinutes;
 
     std::vector<CommittedInterval> scheduledCommitments = context.commitments;
-    std::unordered_map<std::string, SchedulingTimePoint> taskEndTimes;
+    std::unordered_map<std::string, SchedulingTimePoint> taskEndTimes(
+        context.fixedTaskEndTimes.begin(), context.fixedTaskEndTimes.end());
     std::unordered_set<std::string> scheduledTaskIds;
+    for (const auto& fixedTask : context.fixedTaskEndTimes) {
+        scheduledTaskIds.insert(fixedTask.first);
+    }
     std::unordered_set<std::string> attemptedTaskIds;
 
     while (true) {
